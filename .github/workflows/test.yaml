@@ -20,11 +20,19 @@ jobs:
     runs-on: self-hosted
     needs: setup
     steps:
-      - name: Playwright tests
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Install Playwright Browsers
         run: |
-          echo "Running Playwright tests..."
-          # You can replace this with actual Playwright test commands
-          # For example: npx playwright test
+            npx playwright install --with-deps
+      - name: Run Playwright tests
+        run: npx playwright test --trace on
 
   cleanup:
     runs-on: self-hosted
