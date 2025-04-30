@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const baseURL = process.env.TARGET_VM_URL || "http://localhost:3000" || "http://localhost";
+const baseURL = process.env.TARGET_VM_URL || "http://localhost:3000" || "http://10.0.0.4";
 const authFile = path.join(__dirname, "auth.json");
 
 async function globalSetup() {
