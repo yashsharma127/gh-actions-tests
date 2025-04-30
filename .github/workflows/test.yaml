@@ -11,8 +11,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Run a test command
-        run: echo "Hello from the self-hosted runner!"
+      - name: Run docker-compose in TS-EQ-INFRA
+        run: |
+          cd ~/TS-EQ-INFRA
+          docker compose up -d
