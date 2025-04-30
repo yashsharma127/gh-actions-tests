@@ -7,11 +7,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  setup:
+    runs-on: self-hosted
+    steps:
+      - name: Change dir, chmod and run install.sh
+        run: |
+          cd ~/test-swarm-setup/TS-EQ-INFRA
+          chmod +x ./install.sh
+          sudo ./install.sh
+
   test:
     runs-on: self-hosted
-
+    needs: setup
     steps:
-      - name: Run docker-compose in TS-EQ-INFRA
+      - name: Playwright tests
         run: |
-          cd ~/TS-EQ-INFRA
-          docker compose up -d
+          echo "Running Playwright tests..."
+          # You can replace this with actual Playwright test commands
+          # For example: npx playwright test
+
+  cleanup:
+    runs-on: self-hosted
+    needs: test  # Ensure cleanup happens after testing
+    steps:
+      - name: Remove ts-wms docker stack
+        run: docker stack rm ts-wms
+      - name: Remove secrets created for stack setup
+        run: |
+          docker secret rm $(docker secret ls -q) 2>/dev/null || true
+      - name: Remove volumes created for stack setup
+        run: |
+          docker volume ls -q --filter name=^ts-wms | xargs -I {} docker volume rm {} 2>/dev/null || true
+
