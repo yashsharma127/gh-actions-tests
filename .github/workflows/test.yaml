@@ -1,0 +1,18 @@
+name: Self-hosted Test
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run a test command
+        run: echo "Hello from the self-hosted runner!"
