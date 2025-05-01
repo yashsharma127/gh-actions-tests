@@ -72,6 +72,26 @@ jobs:
         run: |
           cd ~/test-swarm-setup/TS-EQ-INFRA
           docker stack rm ts-wms
+      - name: Wait for ts-wms services to stop
+        run: |
+          echo "Waiting for all ts-wms services to be removed..."
+          timeout=180  # 3 minutes max
+          interval=5
+
+          while [ $timeout -gt 0 ]; do
+            count=$(docker service ls --filter name=ts-wms_ --format '{{.Name}}' | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "All ts-wms services have been removed."
+              exit 0
+            fi
+
+            echo "$count services still running..."
+            sleep $interval
+            timeout=$((timeout - interval))
+          done
+
+          echo "Timeout waiting for ts-wms services to stop."
+          exit 1
       - name: Remove secrets created for stack setup
         run: |
           docker secret rm $(docker secret ls -q) 2>/dev/null || true
