@@ -12,11 +12,17 @@ jobs:
     steps:
       - name: Change dir, chmod and run install.sh
         run: |
+          set -euo pipefail  # Enable strict mode to catch errors and undefined variables
+          trap 'echo "❌ Step failed at line $LINENO"; exit 1' ERR  # Trap errors to print error line and exit
+
           cd ~/test-swarm-setup/TS-EQ-INFRA
           chmod +x ./install.sh
           sudo ./install.sh
       - name: Wait for db-migrator replicas to become 0/1
         run: |
+          set -euo pipefail
+          trap 'echo "❌ Step failed at line $LINENO"; exit 1' ERR
+
           echo "Waiting for db-migrator replicas to become 0/1..."
           timeout=180  # max wait time in seconds (3 minutes)
           interval=5    # check every 5 seconds
@@ -58,22 +64,34 @@ jobs:
             ${{ runner.os }}-playwright-browsers-
       - name: Install Playwright Browsers (if not cached)
         run: |
-          if [ ! -d ~/.cache/ms-playwright ]; then
-            npx playwright install --with-deps
+          if [ ! -f ~/.cache/ms-playwright/chromium-*/*/chrome ]; then
+            npx playwright install --with-deps  # Only install browsers if not cached
           fi
       - name: Run Playwright tests
         run: npx playwright test --trace on
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: playwright-report/
 
   cleanup:
     runs-on: self-hosted
-    needs: test
+    needs: [setup, test]  # Ensure cleanup runs after both setup and test
+    if: always()  # This ensures the cleanup runs regardless of the previous job status
     steps:
       - name: Remove ts-wms docker stack
         run: |
+          set -euo pipefail  # Enable strict mode
+          trap 'echo "❌ Step failed at line $LINENO"; exit 1' ERR  # Trap errors to print error line
+
           cd ~/test-swarm-setup/TS-EQ-INFRA
           docker stack rm ts-wms
       - name: Wait for ts-wms services to stop
         run: |
+          set -euo pipefail
+          trap 'echo "❌ Step failed at line $LINENO"; exit 1' ERR
+
           echo "Waiting for all ts-wms services to be removed..."
           timeout=180  # 3 minutes max
           interval=5
@@ -97,6 +115,9 @@ jobs:
           docker secret rm $(docker secret ls -q) 2>/dev/null || true
       - name: Remove volumes created for stack setup
         run: |
+          set -euo pipefail
+          trap 'echo "❌ Step failed at line $LINENO"; exit 1' ERR
+
           echo "Finding ts-wms volumes to remove..."
           volumes=$(docker volume ls -q --filter name=^ts-wms)
 
@@ -116,10 +137,38 @@ jobs:
               attempt=$((attempt + 1))
             done
 
-            # Final check
+            # Final check to confirm if volume was successfully removed
             if docker volume ls -q --filter name="^$vol$" | grep -q "$vol"; then
               echo "❌ Failed to remove volume: $vol"
             else
               echo "✅ Successfully removed volume: $vol"
             fi
           done
+
+          # List dangling volumes (volumes that are no longer in use)
+          echo "Listing dangling volumes..."
+          docker volume ls -f dangling=true
+
+  notify:
+    runs-on: self-hosted
+    needs: [setup, test, cleanup]
+    if: always()  # Run this job regardless of previous job results
+    steps:
+      - name: Check overall pipeline status
+        run: |
+          echo "Checking job statuses..."
+
+          SETUP_STATUS="${{ needs.setup.result }}"
+          TEST_STATUS="${{ needs.test.result }}"
+          CLEANUP_STATUS="${{ needs.cleanup.result }}"
+
+          echo "Setup job status: $SETUP_STATUS"
+          echo "Test job status: $TEST_STATUS"
+          echo "Cleanup job status: $CLEANUP_STATUS"
+
+          if [[ "$SETUP_STATUS" == "success" && "$TEST_STATUS" == "success" && "$CLEANUP_STATUS" == "success" ]]; then
+            echo "All jobs completed successfully."
+          else
+            echo "One or more jobs failed. Please check logs for details."
+          fi
+
