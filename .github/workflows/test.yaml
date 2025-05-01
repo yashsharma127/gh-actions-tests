@@ -15,6 +15,21 @@ jobs:
           cd ~/test-swarm-setup/TS-EQ-INFRA
           chmod +x ./install.sh
           sudo ./install.sh
+      - name: Wait for db-migrator container to exit
+        run: |
+          echo "Waiting for db-migrator container to exit..."
+          timeout=60  # 3 minutes max
+          while [ $timeout -gt 0 ]; do
+            status=$(docker inspect -f '{{.State.Status}}' $(docker ps -aqf "name=db-migrator"))
+            if [ "$status" = "exited" ]; then
+              echo "db-migrator has exited."
+              exit 0
+            fi
+            sleep 5
+            timeout=$((timeout - 5))
+          done
+          echo "Timeout waiting for db-migrator to exit."
+          exit 1
 
   test:
     runs-on: self-hosted
@@ -45,10 +60,11 @@ jobs:
 
   cleanup:
     runs-on: self-hosted
-    needs: test  # Ensure cleanup happens after testing
     steps:
       - name: Remove ts-wms docker stack
-        run: docker stack rm ts-wms
+        run: |
+          cd ~/test-swarm-setup/TS-EQ-INFRA
+          docker stack rm ts-wms
       - name: Remove secrets created for stack setup
         run: |
           docker secret rm $(docker secret ls -q) 2>/dev/null || true
