@@ -15,20 +15,29 @@ jobs:
           cd ~/test-swarm-setup/TS-EQ-INFRA
           chmod +x ./install.sh
           sudo ./install.sh
-      - name: Wait for db-migrator container to exit
+      - name: Wait for db-migrator task to complete
         run: |
-          echo "Waiting for db-migrator container to exit..."
-          timeout=60  # 3 minutes max
+          echo "Waiting for db-migrator service task to exit..."
+          timeout=60  # seconds
+          interval=5
+
           while [ $timeout -gt 0 ]; do
-            status=$(docker inspect -f '{{.State.Status}}' $(docker ps -aqf "name=db-migrator"))
-            if [ "$status" = "exited" ]; then
-              echo "db-migrator has exited."
+            state=$(docker service ps --no-trunc --filter name=ts-wms_db-migrator --format '{{.CurrentState}}' | head -n 1)
+            echo "Current state: $state"
+            
+            if echo "$state" | grep -q "Complete"; then
+              echo "db-migrator task has completed."
               exit 0
+            elif echo "$state" | grep -q "Failed"; then
+              echo "db-migrator task failed!"
+              exit 1
             fi
-            sleep 5
-            timeout=$((timeout - 5))
+
+            sleep $interval
+            timeout=$((timeout - interval))
           done
-          echo "Timeout waiting for db-migrator to exit."
+
+          echo "Timeout waiting for db-migrator task to complete."
           exit 1
 
   test:
@@ -60,6 +69,7 @@ jobs:
 
   cleanup:
     runs-on: self-hosted
+    needs: test
     steps:
       - name: Remove ts-wms docker stack
         run: |
