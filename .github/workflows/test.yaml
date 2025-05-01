@@ -79,7 +79,7 @@ jobs:
           interval=5
 
           while [ $timeout -gt 0 ]; do
-            count=$(docker service ls --filter name=ts-wms_ --format '{{.Name}}' | wc -l)
+            count=$(docker ps --filter name=ts-wms_ --format '{{.Names}}' | wc -l)
             if [ "$count" -eq 0 ]; then
               echo "All ts-wms services have been removed."
               exit 0
@@ -97,5 +97,29 @@ jobs:
           docker secret rm $(docker secret ls -q) 2>/dev/null || true
       - name: Remove volumes created for stack setup
         run: |
-          docker volume ls -q --filter name=^ts-wms | xargs -I {} docker volume rm {} 2>/dev/null || true
+          echo "Finding ts-wms volumes to remove..."
+          volumes=$(docker volume ls -q --filter name=^ts-wms)
 
+          if [ -z "$volumes" ]; then
+            echo "No matching volumes found."
+            exit 0
+          fi
+
+          for vol in $volumes; do
+            echo "Trying to remove volume: $vol"
+            attempt=1
+            max_attempts=5
+            while [ $attempt -le $max_attempts ]; do
+              docker volume rm "$vol" >/dev/null 2>&1 && break
+              echo "Attempt $attempt failed — volume $vol might still be in use. Retrying..."
+              sleep 3
+              attempt=$((attempt + 1))
+            done
+
+            # Final check
+            if docker volume ls -q --filter name="^$vol$" | grep -q "$vol"; then
+              echo "❌ Failed to remove volume: $vol"
+            else
+              echo "✅ Successfully removed volume: $vol"
+            fi
+          done
