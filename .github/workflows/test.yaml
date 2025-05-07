@@ -1,11 +1,16 @@
 name: Self-hosted Test
 
 on:
-  push:
+  # push:
+  #   branches:
+  #     - main
+  #   paths-ignore:
+  #     - '**/*.md'  # Ignores all Markdown file changes, including README.md
+  pull_request:
     branches:
       - main
     paths-ignore:
-      - '**/*.md'  # Ignores all Markdown file changes, including README.md
+      - '**/*.md'
   workflow_dispatch:
 # adding changes to test concurrent runs
 concurrency:
